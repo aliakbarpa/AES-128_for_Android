@@ -1,0 +1,759 @@
+package com.aliakbarntu.aes_128;
+
+import android.content.Context;
+import android.content.Intent;
+import android.os.Environment;
+import android.os.Handler;
+import android.support.annotation.NonNull;
+import android.support.v7.app.AppCompatActivity;
+import android.os.Bundle;
+import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.Toast;
+
+
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+//import com.google.firebase.database.DatabaseReference;
+//import com.google.firebase.database.FirebaseDatabase;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.security.Key;
+import java.security.NoSuchAlgorithmException;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+
+public class Transmitter extends AppCompatActivity
+{
+
+//    private DatabaseReference mDatabase;
+//    public String Email;
+//
+//    boolean stop = true;
+//
+//    private FirebaseAuth mAuth;
+//    private Handler mHandler = new Handler();
+
+
+
+    public EditText Trace, Waiting;
+    public TextView SecretKey, Plaintext, Ciphertext;
+
+    static int trace, WaitTime;
+    String sdCardRoot = "";
+    File Plaintext_file;
+    File Ciphertext_file;
+    BufferedWriter buffer_writer;
+    int waitTimes=1;
+
+    // The array that stores the round keys.
+    byte[] RoundKey = new byte[240];
+    String input = "";   //plain text
+    String output = "";     //cipher text
+    String Secret_Key = "";
+
+    byte[] SKey =  new byte[16];//{ 0x00  ,0x01  ,0x02  ,0x03  ,0x04  ,0x05  ,0x06  ,0x07  ,0x08  ,0x09  ,0x0a  ,0x0b  ,0x0c  ,0x0d  ,0x0e  ,0x0f };
+    byte[] InPlan = new byte[16];//{ 0x00  ,0x01  ,0x02  ,0x03  ,0x04  ,0x05  ,0x06  ,0x07  ,0x08  ,0x09  ,0x0a  ,0x0b  ,0x0c  ,0x0d  ,0x0e  ,0x0f };
+    byte [] OutCiph = new byte[16];
+
+    byte[][] state = new byte[4][4];
+
+    //define global variable
+    int Nb = 4;
+
+    // The number of rounds in AES Cipher. It is simply initiated to zero. The actual value is recieved in the program.
+    int Nr = 10;
+
+    // The number of 32 bit words in the key. It is simply initiated to zero. The actual value is recieved in the program.
+    int Nk = 4;
+
+    private static int[] Rcon = new int[]{ //255
+            0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36, 0x6c, 0xd8, 0xab, 0x4d, 0x9a,
+            0x2f, 0x5e, 0xbc, 0x63, 0xc6, 0x97, 0x35, 0x6a, 0xd4, 0xb3, 0x7d, 0xfa, 0xef, 0xc5, 0x91, 0x39,
+            0x72, 0xe4, 0xd3, 0xbd, 0x61, 0xc2, 0x9f, 0x25, 0x4a, 0x94, 0x33, 0x66, 0xcc, 0x83, 0x1d, 0x3a,
+            0x74, 0xe8, 0xcb, 0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36, 0x6c, 0xd8,
+            0xab, 0x4d, 0x9a, 0x2f, 0x5e, 0xbc, 0x63, 0xc6, 0x97, 0x35, 0x6a, 0xd4, 0xb3, 0x7d, 0xfa, 0xef,
+            0xc5, 0x91, 0x39, 0x72, 0xe4, 0xd3, 0xbd, 0x61, 0xc2, 0x9f, 0x25, 0x4a, 0x94, 0x33, 0x66, 0xcc,
+            0x83, 0x1d, 0x3a, 0x74, 0xe8, 0xcb, 0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b,
+            0x36, 0x6c, 0xd8, 0xab, 0x4d, 0x9a, 0x2f, 0x5e, 0xbc, 0x63, 0xc6, 0x97, 0x35, 0x6a, 0xd4, 0xb3,
+            0x7d, 0xfa, 0xef, 0xc5, 0x91, 0x39, 0x72, 0xe4, 0xd3, 0xbd, 0x61, 0xc2, 0x9f, 0x25, 0x4a, 0x94,
+            0x33, 0x66, 0xcc, 0x83, 0x1d, 0x3a, 0x74, 0xe8, 0xcb, 0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20,
+            0x40, 0x80, 0x1b, 0x36, 0x6c, 0xd8, 0xab, 0x4d, 0x9a, 0x2f, 0x5e, 0xbc, 0x63, 0xc6, 0x97, 0x35,
+            0x6a, 0xd4, 0xb3, 0x7d, 0xfa, 0xef, 0xc5, 0x91, 0x39, 0x72, 0xe4, 0xd3, 0xbd, 0x61, 0xc2, 0x9f,
+            0x25, 0x4a, 0x94, 0x33, 0x66, 0xcc, 0x83, 0x1d, 0x3a, 0x74, 0xe8, 0xcb, 0x8d, 0x01, 0x02, 0x04,
+            0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36, 0x6c, 0xd8, 0xab, 0x4d, 0x9a, 0x2f, 0x5e, 0xbc, 0x63,
+            0xc6, 0x97, 0x35, 0x6a, 0xd4, 0xb3, 0x7d, 0xfa, 0xef, 0xc5, 0x91, 0x39, 0x72, 0xe4, 0xd3, 0xbd,
+            0x61, 0xc2, 0x9f, 0x25, 0x4a, 0x94, 0x33, 0x66, 0xcc, 0x83, 0x1d, 0x3a, 0x74, 0xe8, 0xcb};
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState)
+    {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_transmitter);
+
+
+        Plaintext = (TextView)findViewById(R.id.plainTxt);
+        SecretKey = (TextView)findViewById(R.id.Scrkey);
+        Ciphertext = (TextView)findViewById(R.id.CipherTxt);
+        Trace =(EditText) findViewById(R.id.E_traces);
+        Waiting = (EditText) findViewById(R.id.wait);
+
+//        mAuth = FirebaseAuth.getInstance();
+//        mAuthListener = new FirebaseAuth.AuthStateListener()
+//        {
+//            @Override
+//            public void onAuthStateChanged(@NonNull FirebaseAuth firebaseAuth) {
+//                FirebaseUser user = firebaseAuth.getCurrentUser();
+//                if (user != null) {
+//                    // User is signed in
+//                    // Log.d(TAG, "onAuthStateChanged:signed_in:" + user.getUid());
+//                } else {
+//                    // User is signed out
+//                    //Log.d(TAG, "onAuthStateChanged:signed_out");
+//                }
+//                // ...
+//            }
+//        };
+
+
+
+
+
+
+
+
+        //trace = Integer.parseInt(Trace.getText().toString());
+        //WaitTime = Integer.parseInt(Waiting.getText().toString());
+
+        isExternalStorageWritable();
+
+
+        //get SD card root address
+        sdCardRoot = Environment.getExternalStorageDirectory().toString();
+        Log.d("root address is",""+sdCardRoot);
+
+
+        //create directory for plain text, return root+string directory
+        createDirOnSDCard("Plaintext");
+        createDirOnSDCard("Ciphertext");
+
+
+        //create new file on directory
+        try
+        {
+            Plaintext_file =createFileOnSDCard("Plaintext","Plaintext");
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+
+        try
+        {
+            Ciphertext_file=createFileOnSDCard("Ciphertext","Ciphertext");
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+
+
+    }
+
+
+    public boolean isExternalStorageWritable()
+    {
+        String state = Environment.getExternalStorageState();
+        if (Environment.MEDIA_MOUNTED.equals(state))
+        {
+            Log.d("external available","");
+            return true;
+        }
+        Log.d("external not available","");
+        return false;
+    }
+
+
+    public File createDirOnSDCard(String dir)
+    {
+        File dirFile = new File(sdCardRoot + File.separator + dir +File.separator);
+        if(!dirFile.exists())
+        {
+            //create directory
+            Log.v("createDirOnSDCard", sdCardRoot + File.separator + dir +File.separator);
+            dirFile.mkdirs();
+        }
+        return dirFile;
+    }
+
+
+    public File createFileOnSDCard(String fileName, String dir) throws IOException
+    {
+        File file = new File(sdCardRoot + File.separator + dir + File.separator + fileName);
+        //create file in directory
+        if(!file.exists())
+        {
+            Log.v("createFileOnSDCard", sdCardRoot + File.separator + dir + File.separator + fileName);
+            file.createNewFile();
+        }
+
+        return file;
+    }
+
+
+    //this is to transmit the file
+//    public void FireBase(String input,String output)
+//    {
+//
+//        String Ciph=output;
+//        String Keyz=Secret_Key;
+//        String Pln=input;
+//
+//        Log.d("transmiting cipher"," "+ output);
+//        Log.d("transmiting secrete key"," "+Secret_Key);
+//        Log.d("transmiting plain text"," "+ input);
+//
+//
+//        FirebaseUser user = mAuth.getCurrentUser();
+//        if(user != null){
+//            Email=user.getEmail();
+//        }
+//
+//
+//        if(Email==null){
+//            Email="";
+//        }
+//
+//        if (Email.equals("aliakbar@gmail.com"))
+//        {
+//            mDatabase = FirebaseDatabase.getInstance().getReference("atobmesssage");
+//            mDatabase.child("atobplain").setValue(Pln);
+//            mDatabase.child("atobkey").setValue(Keyz);
+//            mDatabase.child("atobcipher").setValue(Ciph);
+//        }
+//        else
+//            {
+//            mDatabase = FirebaseDatabase.getInstance().getReference("btoamesssage");
+//            mDatabase.child("btoaplain").setValue(Pln);
+//            mDatabase.child("btoakey").setValue(Keyz);
+//            mDatabase.child("btoacipher").setValue(Ciph);
+//            }
+//
+//    }
+
+
+
+
+
+
+    public File writeData2SDCard(File file,String data)
+    {
+        try
+        {
+            FileWriter outwrite = new FileWriter(file,true);
+            buffer_writer= new BufferedWriter(outwrite);
+            buffer_writer.write(data);
+            buffer_writer.flush();
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+        finally
+        {
+            try
+            {
+                buffer_writer.close();
+            }
+            catch (Exception e2)
+            {
+                e2.printStackTrace();
+            }
+        }
+
+        return file;
+    }
+
+    public void btnGenerateFile(View view)
+    {
+        Intent Layer = new Intent(Transmitter.this, Generated_File.class);
+        startActivity(Layer);
+    }
+
+
+
+    //Main encryption
+    public void btnEncrypt(View view)
+    {
+        String output1 = " ";
+        int[] out1 = new int[16];
+
+        trace = Integer.parseInt(Trace.getText().toString());
+        WaitTime = Integer.parseInt(Waiting.getText().toString());
+
+        for(int i = 0; i<trace; i++)
+        {
+            output ="";
+            Ciphertext.setText(output);
+
+
+
+            OnClick();  //generte plaintext
+
+            KeyExpansion(SKey);
+            Encryption();
+
+
+            for (int p = 0; p < 16; p++)
+            {
+                out1[p] = OutCiph[p] & 0x000000FF; //change to integer
+                output1 = Integer.toHexString(out1[p]);
+                if (output1.length() < 2)
+                {
+                    output1 = "0" + output1;
+                }
+                output = output + " " + output1;
+            }
+
+            Ciphertext.setAllCaps(true);
+            Ciphertext.setText(output);
+            output = output + "\n ";
+
+
+
+            //save to internal storage
+            String FILENAME = "Plaintext";
+            FileOutputStream fos = null;
+            Log.d("Plaintext are", " \n " + input);
+            try
+            {
+                fos = openFileOutput(FILENAME, Context.MODE_APPEND);
+                fos.write(input.getBytes());
+                fos.close();
+                //Toast.makeText(SendActivity.this, "File Saved", Toast.LENGTH_LONG).show();
+            }
+            catch (FileNotFoundException e)
+            {
+                e.printStackTrace();
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+
+
+            //save cipher
+            String FILENAME1 = "Ciphertext";
+            FileOutputStream fos1 = null;
+            Log.d("ciphertext write", " \n " + output);
+            try
+            {
+                fos1 = openFileOutput(FILENAME1, Context.MODE_APPEND);
+                fos1.write(output.getBytes());
+                fos1.close();
+                //Toast.makeText(SendActivity.this, "Cipher File Saved", Toast.LENGTH_LONG).show();
+            } catch (FileNotFoundException e)
+            {
+                e.printStackTrace();
+            } catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+
+            // save the plain text to external storage
+            writeData2SDCard(Plaintext_file,input);
+
+            //save the cipher to plain text
+            writeData2SDCard(Ciphertext_file,output);
+
+
+            //FireBase(input, output);
+            //delay for 1s after each round
+            try
+            {
+                Thread.currentThread().sleep(waitTimes*1000);
+            }
+            catch (InterruptedException e)
+            {
+                e.printStackTrace();
+            }
+
+        }
+
+
+        Toast.makeText(Transmitter.this, "File Saved", Toast.LENGTH_LONG).show();
+
+    }
+
+    //End Encryption Activities
+
+
+    //Random Secret Key
+    public void RandomKey(View view)
+    {
+
+        int[] Keys = new int[16];
+        String keyString ="";
+
+
+        //reset the secret key into null
+        Secret_Key="";
+        SecretKey.setText(Secret_Key);
+
+        try
+        {
+            KeyGenerator keyGen = KeyGenerator.getInstance("AES");
+            keyGen.init(128); // 128 bit
+            javax.crypto.SecretKey secretKey = keyGen.generateKey(); //generate secret key
+            SKey= secretKey.getEncoded();
+            // to display
+            for (int i = 0; i < 16; i++)
+            {
+
+                Keys[i] = SKey[i] & 0x000000FF;//convert byte to integer
+                keyString = Integer.toHexString(Keys[i]);
+
+                if (keyString.length() < 2)
+                {
+                    keyString="0"+keyString;
+                }
+                //Log.d("keys are"," "+i+keyString);
+                Secret_Key = Secret_Key + " " + keyString;
+            }
+
+            SecretKey.setAllCaps(true);
+            SecretKey.setText(Secret_Key);
+        }
+
+        catch (NoSuchAlgorithmException e)
+        {
+            System.out.print("null");
+        }
+
+    }
+    //End of Secret Key
+
+
+
+
+    public void btnPlaintext(View view)
+    {
+        OnClick();
+    }
+
+
+    //
+    private void OnClick()
+    {
+        int[] Plx = new int[16];
+        String Planx ="";
+
+
+        //reset the secret key into null
+        input=" ";
+        Plaintext.setText(input);
+
+        try
+        {
+            KeyGenerator textGen = KeyGenerator.getInstance("AES");
+            textGen.init(128); // 128 bit
+            SecretKey plaintext = textGen.generateKey();
+            InPlan = plaintext.getEncoded();
+
+            for (int i = 0; i < 16; i++)
+            {
+                //Log.d("in byte[]", ""+i+" " + in[i]);
+                Plx[i] = InPlan[i] & 0x000000FF;//convert byte to integer
+                Planx = Integer.toHexString(Plx[i]);
+
+                if (Planx.length() < 2)
+                {
+                    Planx = "0" + Planx;
+                }
+
+                input = input + " " + Planx;
+            }
+
+            Log.d("Plaintext is",""+ input);
+            Plaintext.setAllCaps(true);
+            Plaintext.setText(input);
+            input = input + " \n";
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            System.out.print("null");
+        }
+
+        {
+
+
+        }
+
+    }
+
+
+    /*================The function for encryption===================================*/
+
+
+
+
+    private void KeyExpansion(byte[] Key)
+    {
+        int i, j;
+        byte[] temp = new byte[4];
+        byte k;
+        // The first round key is the key itself.
+        for (i = 0; i < Nk; i++) {
+            RoundKey[i * 4] = (byte) Key[i * 4];
+            RoundKey[i * 4 + 1] = (byte) Key[i * 4 + 1];
+            RoundKey[i * 4 + 2] = (byte) Key[i * 4 + 2];
+            RoundKey[i * 4 + 3] = (byte) Key[i * 4 + 3];
+        }
+
+        // All other round keys are found from the previous round keys.
+        while (i < (Nb * (Nr + 1))) //Nr is number of rounds;i=4
+        {
+            for (j = 0; j < 4; j++) {
+                temp[j] = RoundKey[(i - 1) * 4 + j]; // RoundKey 12 13 14 15 saved to temp
+            }
+            if (i % Nk == 0) { //Nk=4
+
+
+
+                {
+                    k = temp[0];
+                    temp[0] = temp[1];
+                    temp[1] = temp[2];
+                    temp[2] = temp[3];
+                    temp[3] = k;
+                }
+
+
+
+                {
+                    temp[0] = (byte) (getSBoxValue(temp[0] & 0x000000ff));
+                    temp[1] = (byte) (getSBoxValue(temp[1] & 0x000000ff));
+                    temp[2] = (byte) (getSBoxValue(temp[2] & 0x000000ff));
+                    temp[3] = (byte) (getSBoxValue(temp[3] & 0x000000ff));
+                }
+                //Log.d("what is temp[0] then"," "+temp[0]);
+                temp[0] = (byte) ((temp[0] ^ Rcon[i / Nk])); //only temp[0] XOR since other Ron are 0
+            } else if (Nk > 6 && i % Nk == 4) {  //Nk=8 i=4
+                // Function Subword()
+                {
+                    temp[0] = (byte) (getSBoxValue(temp[0] & 0x000000ff));
+                    temp[1] = (byte) (getSBoxValue(temp[1] & 0x000000ff));
+                    temp[2] = (byte) (getSBoxValue(temp[2] & 0x000000ff));
+                    temp[3] = (byte) (getSBoxValue(temp[3] & 0x000000ff));
+                }
+            }
+
+            RoundKey[i * 4 + 0] = (byte) (RoundKey[(i - Nk) * 4 + 0] ^ temp[0]);
+            RoundKey[i * 4 + 1] = (byte) (RoundKey[(i - Nk) * 4 + 1] ^ temp[1]);
+            RoundKey[i * 4 + 2] = (byte) (RoundKey[(i - Nk) * 4 + 2] ^ temp[2]);
+            RoundKey[i * 4 + 3] = (byte) (RoundKey[(i - Nk) * 4 + 3] ^ temp[3]);
+            i++;
+        }
+
+
+
+    }
+
+
+    //S-Box
+    private static int getSBoxValue(int myNum)
+    {
+        int[] sbox = {
+                //0     1    2      3     4    5     6     7      8    9     A      B    C     D     E     F
+                0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76, //0
+                0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0, //1
+                0xb7, 0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1, 0x71, 0xd8, 0x31, 0x15, //2
+                0x04, 0xc7, 0x23, 0xc3, 0x18, 0x96, 0x05, 0x9a, 0x07, 0x12, 0x80, 0xe2, 0xeb, 0x27, 0xb2, 0x75, //3
+                0x09, 0x83, 0x2c, 0x1a, 0x1b, 0x6e, 0x5a, 0xa0, 0x52, 0x3b, 0xd6, 0xb3, 0x29, 0xe3, 0x2f, 0x84, //4
+                0x53, 0xd1, 0x00, 0xed, 0x20, 0xfc, 0xb1, 0x5b, 0x6a, 0xcb, 0xbe, 0x39, 0x4a, 0x4c, 0x58, 0xcf, //5
+                0xd0, 0xef, 0xaa, 0xfb, 0x43, 0x4d, 0x33, 0x85, 0x45, 0xf9, 0x02, 0x7f, 0x50, 0x3c, 0x9f, 0xa8, //6
+                0x51, 0xa3, 0x40, 0x8f, 0x92, 0x9d, 0x38, 0xf5, 0xbc, 0xb6, 0xda, 0x21, 0x10, 0xff, 0xf3, 0xd2, //7
+                0xcd, 0x0c, 0x13, 0xec, 0x5f, 0x97, 0x44, 0x17, 0xc4, 0xa7, 0x7e, 0x3d, 0x64, 0x5d, 0x19, 0x73, //8
+                0x60, 0x81, 0x4f, 0xdc, 0x22, 0x2a, 0x90, 0x88, 0x46, 0xee, 0xb8, 0x14, 0xde, 0x5e, 0x0b, 0xdb, //9
+                0xe0, 0x32, 0x3a, 0x0a, 0x49, 0x06, 0x24, 0x5c, 0xc2, 0xd3, 0xac, 0x62, 0x91, 0x95, 0xe4, 0x79, //A
+                0xe7, 0xc8, 0x37, 0x6d, 0x8d, 0xd5, 0x4e, 0xa9, 0x6c, 0x56, 0xf4, 0xea, 0x65, 0x7a, 0xae, 0x08, //B
+                0xba, 0x78, 0x25, 0x2e, 0x1c, 0xa6, 0xb4, 0xc6, 0xe8, 0xdd, 0x74, 0x1f, 0x4b, 0xbd, 0x8b, 0x8a, //C
+                0x70, 0x3e, 0xb5, 0x66, 0x48, 0x03, 0xf6, 0x0e, 0x61, 0x35, 0x57, 0xb9, 0x86, 0xc1, 0x1d, 0x9e, //D
+                0xe1, 0xf8, 0x98, 0x11, 0x69, 0xd9, 0x8e, 0x94, 0x9b, 0x1e, 0x87, 0xe9, 0xce, 0x55, 0x28, 0xdf, //E
+                0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16};
+        return sbox[myNum];
+    }
+    private void SubBytes()
+    {
+        int i, j;
+        for (i = 0; i < 4; i++) {
+            for (j = 0; j < 4; j++) {
+                state[i][j] = (byte) ((getSBoxValue(state[i][j] & 0x000000ff)) & 0xff);
+
+            }
+        }
+
+        for (int p = 0; p < 4; p++) {
+            for (int q = 0; q < 4; q++) {
+                //Log.d("after sub byte", " " + state[q][p]);
+            }
+        }
+    }
+    //S-Box
+
+    //Shift-Row
+    private void ShiftRows()
+    {
+        byte temp;
+
+        // Rotate first row 1 columns to left
+        temp = state[1][0];
+        state[1][0] = state[1][1];
+        state[1][1] = state[1][2];
+        state[1][2] = state[1][3];
+        state[1][3] = temp;
+
+        // Rotate second row 2 columns to left
+        temp = state[2][0];
+        state[2][0] = state[2][2];
+        state[2][2] = temp;
+
+        temp = state[2][1];
+        state[2][1] = state[2][3];
+        state[2][3] = temp;
+
+        // Rotate third row 3 columns to left
+        temp = state[3][0];
+        state[3][0] = state[3][3];
+        state[3][3] = state[3][2];
+        state[3][2] = state[3][1];
+        state[3][1] = temp;
+
+
+    }
+    // The round key is added to the state by an XOR function.
+    private void AddRoundKey(int round)
+    {
+        int i, j;
+        byte[][] temp1 = new byte[4][4];
+        for (i = 0; i < 4; i++) {
+            for (j = 0; j < 4; j++) {
+                temp1[j][i] = state[j][i];
+            }
+        }
+
+        //copy state[][] to temp1 value
+        for (i = 0; i < 4; i++) {
+            for (j = 0; j < 4; j++) {
+                state[j][i] = (byte) (temp1[j][i] ^ RoundKey[round * Nb * 4 + i * Nb + j]);
+            }
+        }
+
+
+    }
+
+    private void MixColumns()
+    {
+
+        byte[][] state1 = new byte[4][4];
+
+        for (int p = 0; p < 4; p++) {
+            for (int q = 0; q < 4; q++) {
+                state1[q][p] = state[q][p];
+            }
+        }
+
+        int[] sp = new int[4];
+        byte b02 = (byte) 0x02, b03 = (byte) 0x03;
+        for (int c = 0; c < 4; c++) {
+            sp[0] = FFMul(b02, state1[0][c]) ^ FFMul(b03, state1[1][c]) ^ state1[2][c] ^ state1[3][c];
+            sp[1] = state1[0][c] ^ FFMul(b02, state1[1][c]) ^ FFMul(b03, state1[2][c]) ^ state1[3][c];
+            sp[2] = state1[0][c] ^ state1[1][c] ^ FFMul(b02, state1[2][c]) ^ FFMul(b03, state1[3][c]);
+            sp[3] = FFMul(b03, state1[0][c]) ^ state1[1][c] ^ state1[2][c] ^ FFMul(b02, state1[3][c]);
+            for (int i = 0; i < 4; i++) {
+                state[i][c] = (byte) sp[i];
+                // Log.d("sp[]","sp[] "+sp[i]);
+            }
+        }
+    }
+
+    private static byte FFMul(byte a, byte b)
+    {
+        byte aa = a, bb = b, r = 0, t;
+        while (aa != 0) {
+            if ((aa & 1) != 0)
+                r = (byte) (r ^ bb);
+            t = (byte) (bb & 0x80);
+            bb = (byte) (bb << 1);
+            if (t != 0)
+                bb = (byte) (bb ^ 0x1b);
+            aa = (byte) ((aa & 0xff) >> 1);
+        }
+        return r;
+    }
+
+
+    private void Encryption()
+    {
+        int i, j, round =0;
+        for(i=0; i<4; i++)
+        {
+            for(j=0; j<4; j++)
+            {
+                state[j][i] = InPlan[i*4 + j];
+            }
+        }
+
+        AddRoundKey(0);
+
+        for(round=1; round<10; round++)
+        {
+            SubBytes();
+            ShiftRows();
+            MixColumns();
+            AddRoundKey(round);
+        }
+
+        SubBytes();
+        ShiftRows();
+        AddRoundKey(10);
+
+
+        for(i=0; i<4; i++)
+        {
+            for(j=0; j<4; j++)
+            {
+                OutCiph[i*4 +j] = state[j][i];
+            }
+        }
+    }
+
+//    private FirebaseAuth.AuthStateListener mAuthListener;
+//
+//    @Override
+//    protected void onStart()
+//    {
+//        super.onStart();
+//        mAuth.addAuthStateListener(mAuthListener);
+//    }
+//
+//
+//    public void onDestroy()
+//    {
+//
+//        super.onDestroy();
+//
+//    }
+
+}
